@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b12'/%3E%3Cpath d='M38 8 18 36h12l-4 20 20-28H34z' fill='%23ffb457'/%3E%3C/svg%3E" />
+<title>Закон Джоуля-Ленца — 3D</title>
+<style>
+  body{margin:0;overflow:hidden;font-family:'Courier New',monospace;background:#000;color:#fff}
+  #ui{position:absolute;top:10px;left:10px;background:rgba(10,10,30,.92);padding:15px;
+      border-radius:8px;z-index:100;border:1px solid #334;width:270px;font-size:12px}
+  #info{position:absolute;bottom:10px;left:10px;background:rgba(10,10,30,.92);padding:12px;
+        border-radius:8px;z-index:100;border:1px solid #334;line-height:1.7}
+  h3{margin:0 0 10px;font-size:14px;color:#ffcc44;border-bottom:1px solid #334;padding-bottom:6px}
+  label{display:block;margin-top:8px;color:#aab}
+  .val{color:#ffcc44;font-weight:bold}
+  input[type=range]{width:100%;margin:3px 0}
+  select,button{width:100%;margin-top:4px;padding:5px;background:#112;color:#fff;
+                border:1px solid #334;border-radius:4px;font-family:inherit;cursor:pointer}
+  button:hover{background:#224}
+  .ck{margin:4px 0}
+  .warn{color:#ff5555}.ok{color:#55ff88}
+  #legend{position:absolute;bottom:10px;right:10px;background:rgba(10,10,30,.92);
+          padding:10px;border-radius:8px;border:1px solid #334;font-size:11px}
+  .bar{width:160px;height:10px;border-radius:3px;margin:4px 0;
+       background:linear-gradient(to right,#3366ff,#00cccc,#ffff00,#ff8800,#ff0000)}
+  .lb{display:flex;justify-content:space-between;color:#889}
+  .vers{display:flex;gap:4px;margin-bottom:10px}
+  .vers a{flex:1;text-align:center;padding:5px 6px;font-size:10px;letter-spacing:.08em;
+          color:#889;text-decoration:none;border:1px solid #334;border-radius:4px;
+          background:#0a0a18;text-transform:uppercase}
+  .vers a.on{color:#ffcc44;border-color:#665522;background:#1a1a2e}
+  .vers a:hover{background:#224;color:#fff}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <div class="vers">
+    <a href="./index.html">основная</a>
+    <a href="./deepseek.html" class="on">deepseek</a>
+  </div>
+  <h3>⚡ Закон Джоуля-Ленца</h3>
+
+  <label>Ток I: <span class="val" id="cV">2.0</span> А</label>
+  <input type="range" id="cS" min="0.1" max="10" step="0.1" value="2">
+
+  <label>Частота: <span class="val" id="fV">0 (DC)</span></label>
+  <input type="range" id="fS" min="0" max="7" step="0.1" value="0">
+
+  <label>Материал</label>
+  <select id="mS">
+    <option value="copper">Медь (ρ=1.68e-8)</option>
+    <option value="nichrome">Нихром (ρ=1.1e-6)</option>
+    <option value="tungsten">Вольфрам (ρ=5.6e-8)</option>
+  </select>
+
+  <div class="ck"><label><input type="checkbox" id="shC" checked> Токовые линии</label></div>
+  <div class="ck"><label><input type="checkbox" id="shT" checked> Температурное поле</label></div>
+  <button id="rst">⟲ Сбросить нагрев</button>
+</div>
+
+<div id="info">
+  <div>R = <span class="val" id="oR">—</span> Ом</div>
+  <div>P = I²R = <span class="val" id="oP">—</span> Вт</div>
+  <div>Q = ∫P dt = <span class="val" id="oQ">0.00</span> Дж</div>
+  <div>δ/R = <span class="val" id="oD">∞</span></div>
+  <div id="oMsg"></div>
+</div>
+
+<div id="legend">
+  <div style="color:#aab;margin-bottom:4px">Температура</div>
+  <div class="bar"></div>
+  <div class="lb"><span>холодно</span><span>горячо</span></div>
+</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ===================== ФИЗИЧЕСКИЕ КОНСТАНТЫ ===================== */
+// Реальные размеры (для физики)
+const L_REAL = 1.0;              // м
+const R_REAL = 0.0005;           // м (0.5 мм)
+const A_REAL = Math.PI * R_REAL * R_REAL;
+
+// Визуальные размеры (для сцены)
+const L_VIS = 8;
+const R_VIS = 0.3;
+
+const MATS = {
+  copper:   {rho:1.68e-8, name:'Медь'},
+  nichrome: {rho:1.10e-6, name:'Нихром'},
+  tungsten: {rho:5.60e-8, name:'Вольфрам'}
+};
+
+const state = {
+  current:2.0, frequency:0, material:'copper',
+  showCurrent:true, showTemp:true,
+  energy:0, heatFraction:0
+};
+
+/* ===================== ФИЗИЧЕСКИЕ ФУНКЦИИ ===================== */
+function resistance() {
+  return MATS[state.material].rho * L_REAL / A_REAL;
+}
+
+function skinDepth() {
+  if (state.frequency <= 0) return Infinity;
+  const rho = MATS[state.material].rho;
+  const mu0 = 4e-7 * Math.PI;
+  return Math.sqrt(rho / (Math.PI * state.frequency * mu0));
+}
+
+function skinRatioAC() {
+  const d = skinDepth();
+  if (d >= R_REAL) return 1;
+  return R_REAL / (2 * d);
+}
+
+/* ===================== ЦВЕТОВАЯ КАРТА ===================== */
+function tempToColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  const c = new THREE.Color();
+  if (t < 0.25) {              // синий → голубой
+    const s = t / 0.25;
+    c.setRGB(0.20*(1-s), 0.30 + 0.50*s, 1.0);
+  } else if (t < 0.5) {        // голубой → жёлтый
+    const s = (t - 0.25) / 0.25;
+    c.setRGB(s, 0.80 + 0.20*s, 1.0 - s);
+  } else if (t < 0.75) {       // жёлтый → оранжевый
+    const s = (t - 0.5) / 0.25;
+    c.setRGB(1.0, 1.0 - 0.4*s, 0.0);
+  } else {                     // оранжевый → красный
+    const s = (t - 0.75) / 0.25;
+    c.setRGB(1.0, 0.6*(1-s), 0.0);
+  }
+  return c;
+}
+
+/* ===================== ТЕМПЕРАТУРА В ТОЧКЕ ===================== */
+function temperatureAt(x, r) {
+  const nx = x / (L_VIS/2);                      // -1..1
+  const R = resistance();
+  const P = state.current * state.current * R;   // Вт
+  // Логарифмическая шкала мощности
+  const pNorm = Math.log10(1 + P * 50) / 3;
+
+  // Параболический профиль: горячо в середине (тепло уходит в концы)
+  const parabolic = Math.max(0, 1 - nx*nx);
+
+  // Горячие точки на контактах (гауссовы пики на краях)
+  const cL = Math.exp(-Math.pow((nx + 1) * 4, 2));
+  const cR = Math.exp(-Math.pow((nx - 1) * 4, 2));
+  const contactHot = (cL + cR) * 1.5;
+
+  // Скин-эффект: поверхность греется сильнее при AC
+  let skinExtra = 0;
+  if (state.frequency > 0) {
+    const d = skinDepth();
+    if (d < R_REAL) {
+      const depthFromSurface = (1 - r/R_VIS) * R_REAL * 2;
+      const inSkin = Math.exp(-depthFromSurface / (d + 1e-12));
+      skinExtra = inSkin * Math.min(1, skinRatioAC() - 1) * 0.4;
+    }
+  }
+
+  return Math.min(1, state.heatFraction *
+    (pNorm * (parabolic * 0.5 + contactHot) + skinExtra));
+}
+
+/* ===================== СЦЕНА ===================== */
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050510);
+scene.fog = new THREE.Fog(0x050510, 15, 30);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(7, 4, 8);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 3;
+controls.maxDistance = 28;
+
+/* ===================== ОСВЕЩЕНИЕ ===================== */
+scene.add(new THREE.AmbientLight(0x8899cc, 0.35));
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+keyLight.position.set(5, 8, 6);
+scene.add(keyLight);
+
+const fillLight = new THREE.DirectionalLight(0x4466ff, 0.45);
+fillLight.position.set(-6, -2, -4);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xff6644, 0.3);
+rimLight.position.set(0, -5, 5);
+scene.add(rimLight);
+
+const grid = new THREE.GridHelper(30, 30, 0x223344, 0x111122);
+grid.position.y = -3;
+scene.add(grid);
+
+/* ===================== ПРОВОД ===================== */
+const wireGeo = new THREE.CylinderGeometry(R_VIS, R_VIS, L_VIS, 32, 80, false);
+wireGeo.rotateZ(Math.PI / 2);
+
+const vertCount = wireGeo.attributes.position.count;
+const colorArr = new Float32Array(vertCount * 3);
+wireGeo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+
+const wireMat = new THREE.MeshStandardMaterial({
+  vertexColors: true, metalness: 0.6, roughness: 0.4,
+  emissive: 0x000000, emissiveIntensity: 0.5
+});
+const wire = new THREE.Mesh(wireGeo, wireMat);
+scene.add(wire);
+
+/* ===================== КОНТАКТЫ (горячие точки) ===================== */
+const cGeo = new THREE.SphereGeometry(0.45, 24, 16);
+const cMat = new THREE.MeshStandardMaterial({
+  color: 0x555566, metalness: 0.8, roughness: 0.3,
+  emissive: 0x000000, emissiveIntensity: 1
+});
+const contactL = new THREE.Mesh(cGeo, cMat.clone());
+contactL.position.x = -L_VIS/2 - 0.2;
+scene.add(contactL);
+
+const contactR = new THREE.Mesh(cGeo, cMat.clone());
+contactR.position.x = L_VIS/2 + 0.2;
+scene.add(contactR);
+
+/* ===================== ЧАСТИЦЫ ТОКА ===================== */
+const N = 500;
+const pData = [];
+const pPos = new Float32Array(N * 3);
+
+function respawnRadial(p) {
+  if (state.frequency > 0) {
+    const d = skinDepth();
+    if (d >= R_REAL * 0.6) {
+      // слабый скин — равномерно
+      const r = R_VIS * Math.sqrt(Math.random()) * 0.85;
+      const a = Math.random() * Math.PI * 2;
+      p.y = r * Math.cos(a); p.z = r * Math.sin(a);
+    } else {
+      // сильный скин — концентрация у поверхности
+      const dVis = Math.max(0.05, (d / R_REAL) * R_VIS * 2);
+      const inner = Math.max(0, R_VIS - dVis);
+      const r = inner + Math.random() * (R_VIS - inner);
+      const a = Math.random() * Math.PI * 2;
+      p.y = r * Math.cos(a); p.z = r * Math.sin(a);
+    }
+  } else {
+    const r = R_VIS * Math.sqrt(Math.random()) * 0.85;
+    const a = Math.random() * Math.PI * 2;
+    p.y = r * Math.cos(a); p.z = r * Math.sin(a);
+  }
+}
+
+for (let i = 0; i < N; i++) {
+  const p = {x: (Math.random()-0.5)*L_VIS, y:0, z:0, speed:0.5 + Math.random()*1.5};
+  respawnRadial(p);
+  pData.push(p);
+}
+
+const pGeo = new THREE.BufferGeometry();
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const pMat = new THREE.PointsMaterial({
+  color: 0xffee44, size: 0.06, transparent: true, opacity: 0.9,
+  blending: THREE.AdditiveBlending, depthWrite: false
+});
+const particles = new THREE.Points(pGeo, pMat);
+scene.add(particles);
+
+/* ===================== СВЕЧЕНИЕ ПРИ НАГРЕВЕ ===================== */
+const glow = new THREE.PointLight(0xff4400, 0, 20, 2);
+scene.add(glow);
+
+/* ===================== UI ===================== */
+const cS = document.getElementById('cS');
+const fS = document.getElementById('fS');
+const mS = document.getElementById('mS');
+const cV = document.getElementById('cV');
+const fV = document.getElementById('fV');
+const oR = document.getElementById('oR');
+const oP = document.getElementById('oP');
+const oQ = document.getElementById('oQ');
+const oD = document.getElementById('oD');
+const oMsg = document.getElementById('oMsg');
+
+function sliderToFreq(v) {
+  if (v < 0.05) return 0;
+  return Math.pow(10, v);  // v=1→10Hz, v=6→1MHz, v=7→10MHz
+}
+
+function updateUI() {
+  cV.textContent = state.current.toFixed(1);
+
+  if (state.frequency <= 0) fV.textContent = '0 (DC)';
+  else if (state.frequency < 1e3) fV.textContent = state.frequency.toFixed(0)+' Гц';
+  else if (state.frequency < 1e6) fV.textContent = (state.frequency/1e3).toFixed(1)+' кГц';
+  else fV.textContent = (state.frequency/1e6).toFixed(2)+' МГц';
+
+  const R = resistance();
+  const P = state.current * state.current * R;
+  oR.textContent = R.toFixed(4);
+  oP.textContent = P.toFixed(3);
+  oQ.textContent = state.energy.toFixed(2);
+
+  const d = skinDepth();
+  if (d === Infinity) {
+    oD.textContent = '∞ (DC)';
+    oMsg.innerHTML = '<span class="ok">✓ Ток заполняет сечение</span>';
+  } else {
+    const ratio = d / R_REAL;
+    oD.textContent = ratio.toFixed(3);
+    if (ratio < 0.3) {
+      const Rac = R * skinRatioAC();
+      oMsg.innerHTML = `<span class="warn">⚠ R_ac ≈ ${Rac.toFixed(4)} Ом (×${skinRatioAC().toFixed(1)})</span>`;
+    } else if (ratio < 1) {
+      oMsg.innerHTML = '<span class="warn">Скин-эффект заметен</span>';
+    } else {
+      oMsg.innerHTML = '<span class="ok">✓ Ток заполняет сечение</span>';
+    }
+  }
+}
+
+cS.addEventListener('input', () => { state.current = parseFloat(cS.value); updateUI(); });
+fS.addEventListener('input', () => {
+  state.frequency = sliderToFreq(parseFloat(fS.value));
+  for (const p of pData) respawnRadial(p);
+  updateUI();
+});
+mS.addEventListener('change', () => { state.material = mS.value; updateUI(); });
+document.getElementById('shC').addEventListener('change', e => state.showCurrent = e.target.checked);
+document.getElementById('shT').addEventListener('change', e => state.showTemp = e.target.checked);
+document.getElementById('rst').addEventListener('click', () => {
+  state.energy = 0; state.heatFraction = 0; updateUI();
+});
+
+/* ===================== АНИМАЦИЯ ===================== */
+let lastT = performance.now();
+let uiAcc = 0;
+
+function updateWireColors() {
+  if (!state.showTemp) {
+    // однородный цвет материала
+    const base = new THREE.Color(0x556677);
+    for (let i = 0; i < vertCount; i++) {
+      colorArr[i*3] = base.r; colorArr[i*3+1] = base.g; colorArr[i*3+2] = base.b;
+    }
+    wireGeo.attributes.color.needsUpdate = true;
+    return;
+  }
+  const pos = wireGeo.attributes.position;
+  for (let i = 0; i < vertCount; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const r = Math.sqrt(y*y + z*z);
+    const c = tempToColor(temperatureAt(x, r));
+    colorArr[i*3] = c.r; colorArr[i*3+1] = c.g; colorArr[i*3+2] = c.b;
+  }
+  wireGeo.attributes.color.needsUpdate = true;
+}
+
+function updateContacts() {
+  const R = resistance();
+  const P = state.current * state.current * R;
+  const pNorm = Math.log10(1 + P * 50) / 3;
+  const t = Math.min(1, pNorm * 1.5) * state.heatFraction;
+  const col = tempToColor(t);
+  [contactL, contactR].forEach(c => {
+    c.material.emissive.copy(col);
+    c.material.emissiveIntensity = t * 2.5;
+  });
+}
+
+function updateParticles(dt) {
+  if (!state.showCurrent) { particles.visible = false; return; }
+  particles.visible = true;
+
+  const pos = pGeo.attributes.position;
+  const speedF = 0.5 + state.current * 0.5;
+
+  for (let i = 0; i < N; i++) {
+    const p = pData[i];
+    p.x += p.speed * speedF * dt;
+
+    if (p.x > L_VIS/2) { p.x = -L_VIS/2; respawnRadial(p); }
+
+    // корректировка при скин-эффекте
+    if (state.frequency > 0) {
+      const d = skinDepth();
+      if (d < R_REAL * 0.6) {
+        const dVis = Math.max(0.05, (d / R_REAL) * R_VIS * 2);
+        const inner = Math.max(0, R_VIS - dVis);
+        const curR = Math.sqrt(p.y*p.y + p.z*p.z);
+        if (curR < inner) {
+          const s = (inner + Math.random()*dVis) / (curR + 1e-10);
+          p.y *= s; p.z *= s;
+        }
+      }
+    }
+
+    pos.setXYZ(i, p.x, p.y, p.z);
+  }
+  pos.needsUpdate = true;
+}
+
+function updateGlow() {
+  const R = resistance();
+  const P = state.current * state.current * R;
+  const norm = Math.min(1, P / 5) * state.heatFraction;
+  glow.intensity = norm * 8;
+  glow.position.set(0, 0, 0);
+  glow.color.setHSL(0.05, 1, 0.5);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - lastT) / 1000);
+  lastT = now;
+
+  // накопление энергии и плавный нагрев
+  const R = resistance();
+  const P = state.current * state.current * R;
+  state.energy += P * dt;
+  state.heatFraction += (1 - state.heatFraction) * dt * 0.9;
+
+  updateWireColors();
+  updateContacts();
+  updateParticles(dt);
+  updateGlow();
+
+  // пульсация частиц
+  const pulse = 0.7 + 0.3 * Math.sin(now * 0.005);
+  pMat.opacity = 0.9 * pulse;
+  pMat.size = 0.05 + 0.015 * Math.sin(now * 0.008);
+
+  controls.update();
+  renderer.render(scene, camera);
+
+  // UI не каждый кадр
+  uiAcc += dt;
+  if (uiAcc > 0.1) { updateUI(); uiAcc = 0; }
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+updateUI();
+animate();
+</script>
+</body>
+</html>
