@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b12'/%3E%3Cpath d='M38 8 18 36h12l-4 20 20-28H34z' fill='%23ffb457'/%3E%3C/svg%3E" />
+<title>Закон Джоуля — Ленца · 3D</title>
+<style>
+  :root{
+    --bg:#05070c;
+    --ink:#e9eef6;
+    --dim:#8b98a9;
+    --faint:#5c6a7c;
+    --line:rgba(255,255,255,.08);
+    --amber:#ffb457;
+    --cyan:#67e2ff;
+    --mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:1;
+    background:radial-gradient(118% 88% at 48% 44%, transparent 34%, rgba(0,0,0,.28) 72%, rgba(0,0,0,.62) 100%);
+  }
+
+  /* ---------- headline ---------- */
+  .headline{
+    position:fixed;top:38px;left:40px;z-index:3;max-width:330px;pointer-events:none;
+  }
+  .eyebrow{
+    display:flex;align-items:center;gap:8px;
+    font-size:10.5px;letter-spacing:.19em;text-transform:uppercase;color:var(--faint);
+    margin-bottom:14px;font-weight:600;
+  }
+  .eyebrow::before{
+    content:"";width:22px;height:1px;background:linear-gradient(90deg,var(--amber),transparent);
+  }
+  h1{
+    margin:0;font-size:31px;line-height:1.08;font-weight:600;letter-spacing:-.02em;
+    color:#f2f6fb;
+  }
+  h1 span{color:var(--amber)}
+  .lede{
+    margin:14px 0 0;font-size:13px;line-height:1.56;color:var(--dim);max-width:296px;
+  }
+  .lede b{color:#cdd8e5;font-weight:500}
+
+  /* ---------- panel ---------- */
+  .panel{
+    position:fixed;top:24px;right:24px;z-index:3;width:344px;
+    max-height:calc(100vh - 48px);overflow-y:auto;overscroll-behavior:contain;
+    padding:18px;border-radius:18px;
+    background:rgba(11,15,23,.74);
+    border:1px solid var(--line);
+    box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.045);
+    backdrop-filter:blur(18px) saturate(1.1);
+    -webkit-backdrop-filter:blur(18px) saturate(1.1);
+    scrollbar-width:none;
+  }
+  .panel::-webkit-scrollbar{width:0;height:0}
+
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;
+  }
+  .panel-head .label{
+    font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:600;
+  }
+  .ghost{
+    font:inherit;color:var(--dim);background:transparent;border:1px solid transparent;
+    width:28px;height:28px;border-radius:9px;cursor:pointer;display:grid;place-items:center;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .ghost:hover{background:rgba(255,255,255,.06);color:var(--ink);border-color:var(--line)}
+  .ghost svg{width:15px;height:15px;display:block}
+
+  .ctrl{display:block;margin-top:15px}
+  .ctrl .row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .ctrl .name{font-size:12.5px;color:var(--dim)}
+  .ctrl .name i{font-style:italic;color:#c8d3e1}
+  .ctrl .val{
+    font-family:var(--mono);font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em;
+  }
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;display:block;width:100%;height:3px;border-radius:2px;
+    background:linear-gradient(90deg,var(--accent) 0 var(--fill),rgba(255,255,255,.1) var(--fill) 100%);
+    outline:none;cursor:pointer;margin:1px 0 3px;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;
+    border:none;box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%, transparent), 0 2px 8px rgba(0,0,0,.5);
+    transition:transform .12s ease;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.12)}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.2)}
+  input[type=range]::-moz-range-thumb{
+    width:14px;height:14px;border-radius:50%;background:#fff;border:none;
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%, transparent);
+  }
+  input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:transparent}
+
+  .divider{height:1px;background:var(--line);margin:18px 0 16px}
+
+  .stat-q{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+  .stat-q .k{font-size:11.5px;color:var(--dim);line-height:1.3}
+  .stat-q .k em{display:block;font-style:normal;color:var(--faint);font-size:10.5px;margin-top:3px}
+  .big{
+    font-family:var(--mono);font-size:31px;line-height:.95;letter-spacing:-.035em;
+    font-variant-numeric:tabular-nums;color:#fff;white-space:nowrap;
+  }
+  .big small{font-size:12px;letter-spacing:0;color:var(--dim);margin-left:3px}
+
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .stat{
+    padding:10px 11px;border-radius:11px;background:rgba(255,255,255,.028);
+    border:1px solid rgba(255,255,255,.045);
+  }
+  .stat .k{font-size:10.5px;color:var(--faint);letter-spacing:.02em}
+  .stat .v{
+    font-family:var(--mono);font-size:16px;margin-top:5px;color:#eaf1f9;
+    font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  }
+  .stat .v small{font-size:10px;color:var(--dim);margin-left:2px}
+
+  .meter{margin-top:14px}
+  .meter .track{
+    height:5px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;
+  }
+  .meter .fill{
+    height:100%;width:0%;border-radius:3px;
+    background:linear-gradient(90deg,#ff6a00,#ffb457 70%,#ffe6b0);
+    box-shadow:0 0 14px rgba(255,140,40,.55);
+    transition:width .18s ease-out;
+  }
+  .meter .cap{
+    display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:var(--faint);
+  }
+  .meter .cap span:first-child{color:#a58a68}
+  .meter .cap b{color:#c9a27a;font-weight:500}
+
+  .formula{
+    margin-top:16px;padding:13px 14px;border-radius:12px;
+    background:linear-gradient(160deg, rgba(255,180,87,.085), rgba(255,180,87,.015) 60%);
+    border:1px solid rgba(255,180,87,.16);
+  }
+  .formula .law{
+    font-family:var(--mono);font-size:17px;letter-spacing:.01em;color:#ffd9a8;
+    font-variant-numeric:tabular-nums;
+  }
+  .formula .law sup{font-size:.62em;vertical-align:super}
+  .formula .now{
+    margin-top:7px;font-family:var(--mono);font-size:11px;color:#a78a6b;
+    font-variant-numeric:tabular-nums;line-height:1.5;
+  }
+
+  .chart-wrap{margin-top:14px}
+  .chart-wrap .cap{display:flex;justify-content:space-between;font-size:10px;color:var(--faint);margin-bottom:6px}
+  #chart{display:block;width:100%;height:86px}
+
+  .panel-foot{
+    display:flex;align-items:center;gap:10px;margin-top:14px;
+  }
+  .play{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
+    font:inherit;font-size:12.5px;font-weight:500;color:var(--ink);
+    background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:11px;
+    padding:9px 12px;cursor:pointer;transition:background .15s,border-color .15s;
+  }
+  .play:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.16)}
+  .play svg{width:13px;height:13px}
+  .clock{
+    font-family:var(--mono);font-size:11.5px;color:var(--dim);white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .clock b{color:var(--ink);font-weight:500}
+
+  .note{
+    margin:14px 0 0;font-size:10.5px;line-height:1.55;color:#5f6d7f;
+  }
+
+  /* ---------- legend ---------- */
+  .legend{
+    position:fixed;left:40px;bottom:34px;z-index:3;display:flex;gap:18px;flex-wrap:wrap;
+    font-size:11.5px;color:var(--dim);pointer-events:none;
+  }
+  .legend span{display:flex;align-items:center;gap:7px}
+  .dot{
+    width:7px;height:7px;border-radius:50%;background:currentColor;
+    box-shadow:0 0 9px currentColor;flex:none;
+  }
+  .dot.e{color:#7ce9ff}
+  .dot.i{color:#9db4cc}
+  .dot.h{color:#ff8a3d}
+
+  .hint{
+    position:fixed;left:40px;bottom:14px;z-index:3;font-size:10.5px;color:#4e5b6c;pointer-events:none;
+  }
+
+  @media (max-width:900px){
+    .headline{top:22px;left:20px;max-width:330px}
+    h1{font-size:22px}
+    .lede{display:none}
+    .eyebrow{margin-bottom:9px}
+    .panel{
+      top:auto;left:10px;right:10px;bottom:10px;width:auto;max-height:58vh;
+      border-radius:16px;padding:14px;
+    }
+    .divider{margin:13px 0 12px}
+    .ctrl{margin-top:12px}
+    .chart-wrap{display:none}
+    .note{display:none}
+    .legend{display:none}
+    .hint{display:none}
+  }
+  @media (max-height:720px) and (min-width:901px){
+    .headline{top:24px;left:30px}
+    .panel{top:14px;right:14px;max-height:calc(100vh - 28px)}
+    h1{font-size:28px}
+    .lede{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="vignette"></div>
+
+<header class="headline">
+  <div class="eyebrow">закон джоуля — ленца</div>
+  <h1>Электричество<br>превращается в <span>тепло</span></h1>
+  <p class="lede">
+    Электроны <b>бьются об ионы</b> решётки — каждый удар отдаёт ей порцию энергии.
+    Чем сильнее ток, тем чаще и сильнее удары: мощность растёт как <b>I²</b>.
+  </p>
+</header>
+
+<aside class="panel" id="panel">
+  <div class="panel-head">
+    <span class="label">Параметры цепи</span>
+    <button class="ghost" id="reset" title="Сбросить (R)" aria-label="Сбросить">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3.5-7.1"/><path d="M3 4v5h5"/></svg>
+    </button>
+  </div>
+
+  <label class="ctrl" style="--accent:#67e2ff;--fill:60%">
+    <div class="row">
+      <span class="name">Сила тока <i>I</i></span>
+      <span class="val" id="i-val">3,2 А</span>
+    </div>
+    <input id="i" type="range" min="0.5" max="5" step="0.1" value="3.2" aria-label="Сила тока" />
+  </label>
+
+  <label class="ctrl" style="--accent:#ffb457;--fill:64%">
+    <div class="row">
+      <span class="name">Сопротивление <i>R</i></span>
+      <span class="val" id="r-val">5,5 Ом</span>
+    </div>
+    <input id="r" type="range" min="1" max="8" step="0.5" value="5.5" aria-label="Сопротивление" />
+  </label>
+
+  <div class="divider"></div>
+
+  <div class="stat-q">
+    <div class="k">Выделилось тепла <em>Q — за всё время</em></div>
+    <div class="big"><span id="q-val">0</span><small>Дж</small></div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat">
+      <div class="k">Мощность P</div>
+      <div class="v"><span id="p-val">56,3</span><small>Вт</small></div>
+    </div>
+    <div class="stat">
+      <div class="k">Нагрев провода</div>
+      <div class="v"><span id="t-val">22</span><small>°C</small></div>
+    </div>
+  </div>
+
+  <div class="meter">
+    <div class="track"><div class="fill" id="p-bar"></div></div>
+    <div class="cap"><span>ток ×2 → тепло ×4</span><span id="p-pct">28%</span></div>
+  </div>
+
+  <div class="formula">
+    <div class="law">Q = I<sup>2</sup> · R · t</div>
+    <div class="now" id="formula-now">P = (3,2)² · 5,5 = 56,3 Вт</div>
+  </div>
+
+  <div class="chart-wrap">
+    <div class="cap"><span>Q, Дж</span><span>время, с →</span></div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="panel-foot">
+    <button class="play" id="play">
+      <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></svg>
+      <span id="play-label">Пауза</span>
+    </button>
+    <span class="clock">t = <b id="time-val">0,0</b> с</span>
+  </div>
+
+  <p class="note">Модель: провод в разрезе, теплоотдача в воздух учтена. Q — вся энергия, которую ток превратил в тепло. Пробел — пауза.</p>
+</aside>
+
+<div class="legend">
+  <span><i class="dot e"></i>электроны</span>
+  <span><i class="dot i"></i>ионы решётки</span>
+  <span><i class="dot h"></i>тепло</span>
+</div>
+<div class="hint">перетащи — повернуть · колесо — масштаб</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
