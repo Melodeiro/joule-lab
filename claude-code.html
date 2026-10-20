@@ -1,0 +1,896 @@
+<link rel="stylesheet" href="./harness-nav.css" />
+<title>Закон Джоуля–Ленца в 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: full-height lab bench — 3D scene fills the left, an instrument panel on the right (stacks below on phones). Single dark look by choice. */
+:root {
+  --bg: #0d1217;
+  --bg-2: #141b22;
+  --panel: #111820;
+  --line: #24303b;
+  --fg: #e3e9ee;
+  --muted: #8b9aa7;
+  --electron: #63c8ff;
+  --a: #8db4ff;
+  --b: #ffc163;
+  --heat: #ff6a2a;
+  --font-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.app {
+  box-sizing: border-box;
+  height: 100%;
+  padding-top: 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+}
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  background: radial-gradient(ellipse at 50% 35%, #18222c 0%, var(--bg) 70%);
+  overflow: hidden;
+}
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#scene:active { cursor: grabbing; }
+
+.tag {
+  position: absolute; left: 0; top: 0;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: rgba(13, 18, 23, .78);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tag b {
+  display: grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  font-family: var(--font-display); font-size: 11px; color: var(--bg);
+}
+.tag.a b { background: var(--a); }
+.tag.b b { background: var(--b); }
+
+.legend {
+  position: absolute; left: 16px; bottom: 16px;
+  display: flex; flex-wrap: wrap; gap: 6px 14px;
+  max-width: calc(100% - 32px);
+  font-size: 12px; color: var(--muted);
+  pointer-events: none;
+}
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.hint {
+  position: absolute; right: 16px; top: 14px;
+  font-size: 12px; color: var(--muted);
+  pointer-events: none;
+}
+.flow {
+  position: absolute; left: 16px; top: 14px;
+  display: grid; gap: 2px;
+  font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+  pointer-events: none;
+}
+.flow .cur { color: var(--fg); }
+.flow .el { color: var(--electron); }
+
+.panel {
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 22px 20px 28px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+.eyebrow {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  margin: 0 0 6px;
+}
+h1 {
+  margin: 0;
+  font-family: var(--font-display); font-weight: 700;
+  font-size: 34px; line-height: 1.1; letter-spacing: -.01em;
+  text-wrap: balance;
+}
+h1 .sq { color: var(--heat); font-size: .62em; vertical-align: .75em; }
+.lede { margin: 10px 0 0; color: #c4ced6; max-width: 62ch; }
+.lede em { font-style: normal; color: var(--heat); }
+
+h2 {
+  margin: 0 0 10px;
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 600;
+}
+.ctl { display: grid; gap: 4px; }
+.ctl + .ctl { margin-top: 14px; }
+.ctl label { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.ctl output { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 14px; }
+input[type="range"] { width: 100%; accent-color: var(--a); height: 24px; }
+input[type="range"]:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; border-radius: 4px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button {
+  appearance: none; border: 0; background: transparent; color: var(--muted);
+  font: 500 13px/1.2 var(--font-body);
+  padding: 9px 8px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--bg-2); color: var(--b); }
+.seg button:focus-visible { outline: 2px solid var(--b); outline-offset: -2px; }
+
+.readout { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.readout th, .readout td { padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.readout th { font-weight: 500; font-size: 12px; color: var(--muted); }
+.readout th:first-child, .readout td:first-child { text-align: left; }
+.readout td { font-family: var(--font-mono); font-size: 13px; }
+.readout .ra td:first-child { color: var(--a); font-weight: 600; }
+.readout .rb td:first-child { color: var(--b); font-weight: 600; }
+
+.ratio {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 12px; padding: 12px 14px;
+  background: var(--bg-2); border-radius: 8px;
+}
+.ratio .big { font-family: var(--font-display); font-weight: 700; font-size: 28px; color: var(--b); font-variant-numeric: tabular-nums; }
+.ratio .why { font-size: 13px; color: var(--muted); }
+
+.transport { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn {
+  appearance: none; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg-2); color: var(--fg);
+  font: 500 14px/1 var(--font-body);
+  padding: 10px 14px; border-radius: 8px;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible { outline: 2px solid var(--a); outline-offset: 2px; }
+.clock { margin-left: auto; font-family: var(--font-mono); font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+canvas.chart { width: 100%; height: 170px; display: block; }
+.note { font-size: 13px; color: var(--muted); margin: 8px 0 0; max-width: 62ch; }
+.foot { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px; margin: 0; }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+  html, body { height: auto; }
+  .stage { height: 62svh; min-height: 340px; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; padding-inline: 16px; }
+  h1 { font-size: 28px; }
+  .hint { display: none; }
+}
+</style>
+
+<nav class="harness-nav" aria-label="Выбор харнесса">
+  <span class="harness-nav__label">харнесс</span>
+  <div class="harness-nav__list">
+    <a class="harness-nav__item" href="./index.html">
+      <span>DeepSeek</span><em>в нашем харнессе</em>
+    </a>
+    <a class="harness-nav__item" href="./deepseek.html">
+      <span>DeepSeek</span><em>в обычном харнессе</em>
+    </a>
+    <a class="harness-nav__item is-on" href="./claude-code.html" aria-current="page">
+      <span>Claude</span><em>в Claude Code</em>
+    </a>
+  </div>
+</nav>
+
+<div class="app">
+  <section class="stage" aria-label="Трёхмерная модель двух проводников">
+    <canvas id="scene"></canvas>
+    <div class="tag a" id="tagA"><b>A</b><span id="tagAt">20 °C</span></div>
+    <div class="tag b" id="tagB"><b>B</b><span id="tagBt">20 °C</span></div>
+    <div class="flow">
+      <span class="cur">ток I →</span>
+      <span class="el">← электроны</span>
+    </div>
+    <div class="hint">Тяните — вращать, колесо — масштаб</div>
+    <div class="legend">
+      <span><i class="dot" style="background:var(--electron)"></i>электроны</span>
+      <span><i class="dot" style="background:#9aa6b2"></i>ионы решётки</span>
+      <span><i class="dot" style="background:#fff2c4"></i>столкновение: энергия → решётке</span>
+      <span><i class="dot" style="background:var(--heat)"></i>тепло уходит в воздух</span>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <header>
+      <p class="eyebrow">Закон Джоуля–Ленца</p>
+      <h1>Q = I<span class="sq">2</span>·R·t</h1>
+      <p class="lede">Электроны разгоняются полем и врезаются в ионы решётки. Каждое столкновение раскачивает ионы, и проводник греется. Чем больше ток, тем быстрее идут электроны и тем сильнее удары, поэтому тепло растёт как <em>квадрат тока</em>.</p>
+    </header>
+
+    <section>
+      <h2>Параметры провода A</h2>
+      <div class="ctl">
+        <label for="iRange">Сила тока I <output id="iOut">2,0 А</output></label>
+        <input type="range" id="iRange" min="0" max="3" step="0.1" value="2">
+      </div>
+      <div class="ctl">
+        <label for="rRange">Сопротивление R <output id="rOut">6,0 Ом</output></label>
+        <input type="range" id="rRange" min="1" max="10" step="0.5" value="6">
+      </div>
+      <div class="ctl">
+        <label id="modeLabel">Провод B отличается от A</label>
+        <div class="seg" role="group" aria-labelledby="modeLabel">
+          <button type="button" id="modeI" aria-pressed="true">ток ×2</button>
+          <button type="button" id="modeR" aria-pressed="false">сопротивление ×2</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Приборы</h2>
+      <div class="transport">
+        <button class="btn" type="button" id="playBtn">Пауза</button>
+        <button class="btn" type="button" id="resetBtn">Сбросить</button>
+        <span class="clock">t = <span id="tOut">0,0</span> с</span>
+      </div>
+      <table class="readout" style="margin-top:12px">
+        <thead><tr><th></th><th>I, А</th><th>R, Ом</th><th>P, Вт</th><th>T, °C</th><th>Q, Дж</th></tr></thead>
+        <tbody>
+          <tr class="ra"><td>A</td><td id="aI"></td><td id="aR"></td><td id="aP"></td><td id="aT"></td><td id="aQ"></td></tr>
+          <tr class="rb"><td>B</td><td id="bI"></td><td id="bR"></td><td id="bP"></td><td id="bT"></td><td id="bQ"></td></tr>
+        </tbody>
+      </table>
+      <div class="ratio">
+        <span>Q<sub>B</sub> / Q<sub>A</sub></span>
+        <span class="big" id="ratioOut">4,00</span>
+        <span class="why" id="ratioWhy">ток вдвое больше → тепла в 2² = 4 раза больше</span>
+      </div>
+    </section>
+
+    <section>
+      <h2>Мощность от тока: P = I²R</h2>
+      <canvas class="chart" id="pChart" aria-label="Парабола мощности от силы тока"></canvas>
+      <p class="note">Удвоили ток, и точка уехала вверх по параболе в четыре раза. Удвоили сопротивление, и парабола стала круче вдвое.</p>
+    </section>
+
+    <section>
+      <h2>Накопленное тепло Q(t)</h2>
+      <canvas class="chart" id="qChart" aria-label="График накопленного тепла от времени"></canvas>
+      <p class="note">Температура выходит на предел: сколько тепла выделяется, столько уходит в воздух. А выделенная теплота Q растёт линейно всё время, пока течёт ток.</p>
+    </section>
+
+    <p class="foot">Модель: нихромовая проволока (плавится около 1400 °C), теплоёмкость 1,2 Дж/К, отвод тепла конвекцией и излучением: C·dT/dt = I²R − теплоотдача. Числа P и Q считаются по формулам точно; частицы только иллюстрируют процесс.</p>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- formatting ----------
+  const fmt = (v, d) => v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtQ = (v) => v < 1000 ? fmt(v, 1) : fmt(v, 0);
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- physics ----------
+  const T0 = 20;            // °C, room
+  const HEAT_CAP = 1.2;     // J/K
+  const H_CONV = 0.1;       // W/K
+  const EPS_RAD = 6e-11;    // W/K^4 (lumped radiation)
+  const K0 = T0 + 273.15;
+
+  const state = {
+    I: 2, R: 6, mode: 'I',
+    t: 0, running: !reduceMotion,
+    wires: []
+  };
+  function paramsB() {
+    return state.mode === 'I' ? { I: state.I * 2, R: state.R } : { I: state.I, R: state.R * 2 };
+  }
+  function cooling(T) {
+    const K = T + 273.15;
+    return H_CONV * (T - T0) + EPS_RAD * (K * K * K * K - K0 * K0 * K0 * K0);
+  }
+
+  // ---------- three.js scene ----------
+  const canvas = document.getElementById('scene');
+  const stage = canvas.parentElement;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.setClearColor(0x000000, 0);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0d1217, 18, 38);
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  camera.position.set(2.5, 11, 11.5);
+
+  const controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.target.set(0, -0.2, 0);
+  controls.minDistance = 5;
+  controls.maxDistance = 26;
+  controls.maxPolarAngle = Math.PI * 0.92;
+
+  scene.add(new THREE.HemisphereLight(0xbcd3ff, 0x1a1410, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.8);
+  key.position.set(4, 10, 6);
+  scene.add(key);
+
+  const grid = new THREE.GridHelper(40, 40, 0x24303b, 0x18212a);
+  grid.position.y = -2.2;
+  scene.add(grid);
+
+  // soft round sprite for heat particles
+  function softTexture() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.4, 'rgba(255,255,255,0.45)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+    const tex = new THREE.CanvasTexture(c);
+    return tex;
+  }
+  const soft = softTexture();
+
+  // blackbody-ish glow ramp (°C → color, intensity)
+  const GLOW = [
+    [450, 0x000000, 0.0],
+    [550, 0x5a0d00, 0.25],
+    [700, 0xa51c00, 0.55],
+    [850, 0xe2450a, 0.85],
+    [1000, 0xff7a1f, 1.05],
+    [1150, 0xffb04a, 1.25],
+    [1300, 0xffd88a, 1.4]
+  ].map(([t, c, k]) => [t, new THREE.Color(c), k]);
+  const _c = new THREE.Color();
+  function glowAt(T, out) {
+    if (T <= GLOW[0][0]) { out.setRGB(0, 0, 0); return 0; }
+    for (let i = 1; i < GLOW.length; i++) {
+      if (T <= GLOW[i][0]) {
+        const a = GLOW[i - 1], b = GLOW[i];
+        const f = (T - a[0]) / (b[0] - a[0]);
+        out.copy(a[1]).lerp(b[1], f);
+        return a[2] + (b[2] - a[2]) * f;
+      }
+    }
+    const last = GLOW[GLOW.length - 1];
+    out.copy(last[1]);
+    return last[2];
+  }
+
+  const L = 10, RAD = 0.95, A_LAT = 0.55;
+  const NX = Math.floor((L - 0.6) / A_LAT) + 1;
+  const X0 = -((NX - 1) * A_LAT) / 2;
+  const N_ION = NX * 9;
+  const N_EL = 230;
+  const N_SPARK = 260;
+  const N_HEAT = 360;
+  const COOL_ION = new THREE.Color(0x8e9aa6);
+  const WARM_ION = new THREE.Color(0x9a4a3a);
+
+  const _m = new THREE.Matrix4();
+  const _q = new THREE.Quaternion();
+  const _p = new THREE.Vector3();
+  const _s = new THREE.Vector3();
+
+  function makeWire(z, accent) {
+    const group = new THREE.Group();
+    group.position.z = z;
+    scene.add(group);
+
+    const shellMat = new THREE.MeshStandardMaterial({
+      color: 0x9fb0c0, transparent: true, opacity: 0.13, roughness: 0.25, metalness: 0.2,
+      side: THREE.DoubleSide, depthWrite: false, emissive: 0x000000
+    });
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(RAD, RAD, L, 56, 1, true), shellMat);
+    shell.rotation.z = Math.PI / 2;
+    group.add(shell);
+
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: 0xff5a1a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const glow = new THREE.Mesh(new THREE.CylinderGeometry(RAD * 1.35, RAD * 1.35, L * 1.02, 40, 1, true), glowMat);
+    glow.rotation.z = Math.PI / 2;
+    group.add(glow);
+
+    // copper terminals
+    const clampMat = new THREE.MeshStandardMaterial({ color: 0xb87333, roughness: 0.35, metalness: 0.85 });
+    [-1, 1].forEach((s) => {
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(RAD * 1.12, RAD * 1.12, 0.45, 40), clampMat);
+      c.rotation.z = Math.PI / 2;
+      c.position.x = s * (L / 2 + 0.2);
+      group.add(c);
+      const lead = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.2, 16), clampMat);
+      lead.position.set(s * (L / 2 + 0.2), -1.5, 0);
+      group.add(lead);
+    });
+
+    // accent ring marks which wire is which
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(RAD * 1.13, 0.035, 8, 48),
+      new THREE.MeshBasicMaterial({ color: accent }));
+    ring.rotation.y = Math.PI / 2;
+    ring.position.x = -(L / 2 + 0.45);
+    group.add(ring);
+
+    // ions
+    const ionMat = new THREE.MeshStandardMaterial({ roughness: 0.45, metalness: 0.35, emissive: 0x000000 });
+    const ions = new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 16, 12), ionMat, N_ION);
+    const ionBase = new Float32Array(N_ION * 3);
+    const ionPhase = new Float32Array(N_ION * 3);
+    const ionKick = new Float32Array(N_ION);
+    let k = 0;
+    for (let ix = 0; ix < NX; ix++) for (let iy = 0; iy < 3; iy++) for (let iz = 0; iz < 3; iz++) {
+      ionBase[k * 3] = X0 + ix * A_LAT;
+      ionBase[k * 3 + 1] = (iy - 1) * A_LAT;
+      ionBase[k * 3 + 2] = (iz - 1) * A_LAT;
+      ionPhase[k * 3] = Math.random() * 6.283;
+      ionPhase[k * 3 + 1] = Math.random() * 6.283;
+      ionPhase[k * 3 + 2] = Math.random() * 6.283;
+      ions.setColorAt(k, COOL_ION);
+      k++;
+    }
+    ions.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    group.add(ions);
+
+    // electrons
+    const els = new THREE.InstancedMesh(new THREE.SphereGeometry(0.055, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0x6fd0ff }), N_EL);
+    els.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const ep = new Float32Array(N_EL * 3), ev = new Float32Array(N_EL * 3);
+    for (let i = 0; i < N_EL; i++) {
+      let y, zz;
+      do { y = (Math.random() * 2 - 1) * 0.85; zz = (Math.random() * 2 - 1) * 0.85; } while (y * y + zz * zz > 0.72);
+      ep[i * 3] = (Math.random() - 0.5) * L;
+      ep[i * 3 + 1] = y;
+      ep[i * 3 + 2] = zz;
+      randomDir(ev, i, 0.7);
+    }
+    group.add(els);
+
+    // collision sparks (additive; fade by darkening instance color)
+    const sparks = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 10, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }), N_SPARK);
+    sparks.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const sparkLife = new Float32Array(N_SPARK);
+    const sparkPos = new Float32Array(N_SPARK * 3);
+    const sparkHot = new Float32Array(N_SPARK);
+    for (let i = 0; i < N_SPARK; i++) {
+      _m.makeScale(0, 0, 0);
+      sparks.setMatrixAt(i, _m);
+      sparks.setColorAt(i, new THREE.Color(0, 0, 0));
+    }
+    group.add(sparks);
+
+    // heat leaving into the air
+    const hGeo = new THREE.BufferGeometry();
+    const hPos = new Float32Array(N_HEAT * 3);
+    const hCol = new Float32Array(N_HEAT * 3);
+    const hLife = new Float32Array(N_HEAT);
+    const hVel = new Float32Array(N_HEAT * 3);
+    for (let i = 0; i < N_HEAT; i++) hPos[i * 3 + 1] = -100;
+    hGeo.setAttribute('position', new THREE.BufferAttribute(hPos, 3).setUsage(THREE.DynamicDrawUsage));
+    hGeo.setAttribute('color', new THREE.BufferAttribute(hCol, 3).setUsage(THREE.DynamicDrawUsage));
+    const heat = new THREE.Points(hGeo, new THREE.PointsMaterial({
+      size: 0.42, map: soft, vertexColors: true, transparent: true,
+      blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+    }));
+    heat.frustumCulled = false;
+    group.add(heat);
+
+    const light = new THREE.PointLight(0xff6a2a, 0, 9, 2);
+    light.position.set(0, -0.6, 0);
+    group.add(light);
+
+    return {
+      group, shellMat, glowMat, ionMat, ions, ionBase, ionPhase, ionKick, els, ep, ev,
+      sparks, sparkLife, sparkPos, sparkHot, sparkNext: 0,
+      heat, hPos, hCol, hLife, hVel, heatNext: 0, heatAcc: 0, collAcc: 0,
+      light, T: T0, Q: 0, I: 0, R: 0, P: 0, z
+    };
+  }
+  function randomDir(arr, i, speed) {
+    const u = Math.random() * 2 - 1, th = Math.random() * 6.283, s = Math.sqrt(1 - u * u);
+    arr[i * 3] = s * Math.cos(th) * speed;
+    arr[i * 3 + 1] = s * Math.sin(th) * speed;
+    arr[i * 3 + 2] = u * speed;
+  }
+
+  const wireA = makeWire(-2.5, 0x8db4ff);
+  const wireB = makeWire(2.5, 0xffc163);
+  state.wires = [wireA, wireB];
+
+  const glowColor = new THREE.Color();
+  const ionColor = new THREE.Color();
+  const sparkColor = new THREE.Color();
+  const heatColor = new THREE.Color();
+
+  // ---------- per-wire simulation step ----------
+  function stepPhysics(w, dt) {
+    w.P = w.I * w.I * w.R;
+    w.Q += w.P * dt;                         // exact: P is constant within a step
+    const sub = Math.max(1, Math.ceil(dt / (1 / 240)));
+    const h = dt / sub;
+    for (let s = 0; s < sub; s++) w.T += (w.P - cooling(w.T)) / HEAT_CAP * h;
+  }
+
+  function stepParticles(w, dt, time) {
+    const dT = Math.max(0, w.T - T0);
+    const heatLevel = Math.min(1, Math.sqrt(dT / 1250));
+    const drift = 0.95 * w.I;                // electron drift speed ∝ I (n, e, S fixed)
+    const thermal = 0.55;
+    const collRate = 0.22 * w.R * (w.I > 0.01 ? 1 : 0.15); // collisions per electron per second ∝ R
+    const sparkPower = Math.min(1.6, 0.25 + 0.42 * w.I);
+
+    // electrons
+    const ep = w.ep, ev = w.ev;
+    for (let i = 0; i < N_EL; i++) {
+      const ix = i * 3;
+      ep[ix] += (-drift + ev[ix]) * dt;
+      ep[ix + 1] += ev[ix + 1] * dt;
+      ep[ix + 2] += ev[ix + 2] * dt;
+      const rr = ep[ix + 1] * ep[ix + 1] + ep[ix + 2] * ep[ix + 2];
+      if (rr > 0.74) {  // bounce off the wire surface
+        const r = Math.sqrt(rr), ny = ep[ix + 1] / r, nz = ep[ix + 2] / r;
+        const dot = ev[ix + 1] * ny + ev[ix + 2] * nz;
+        if (dot > 0) { ev[ix + 1] -= 2 * dot * ny; ev[ix + 2] -= 2 * dot * nz; }
+        ep[ix + 1] = ny * 0.85; ep[ix + 2] = nz * 0.85;
+      }
+      if (ep[ix] < -L / 2) ep[ix] += L;
+      else if (ep[ix] > L / 2) ep[ix] -= L;
+
+      if (Math.random() < collRate * dt) {
+        randomDir(ev, i, thermal);
+        // nearest lattice ion takes the hit
+        const gx = Math.min(NX - 1, Math.max(0, Math.round((ep[ix] - X0) / A_LAT)));
+        const gy = Math.min(2, Math.max(0, Math.round(ep[ix + 1] / A_LAT) + 1));
+        const gz = Math.min(2, Math.max(0, Math.round(ep[ix + 2] / A_LAT) + 1));
+        const ion = gx * 9 + gy * 3 + gz;
+        w.ionKick[ion] = Math.min(0.22, w.ionKick[ion] + 0.035 * sparkPower);
+        if (w.I > 0.01) {
+          const s = w.sparkNext; w.sparkNext = (s + 1) % N_SPARK;
+          w.sparkLife[s] = 1;
+          w.sparkHot[s] = sparkPower;
+          w.sparkPos[s * 3] = (ep[ix] + w.ionBase[ion * 3]) / 2;
+          w.sparkPos[s * 3 + 1] = (ep[ix + 1] + w.ionBase[ion * 3 + 1]) / 2;
+          w.sparkPos[s * 3 + 2] = (ep[ix + 2] + w.ionBase[ion * 3 + 2]) / 2;
+        }
+      }
+      _m.makeTranslation(ep[ix], ep[ix + 1], ep[ix + 2]);
+      w.els.setMatrixAt(i, _m);
+    }
+    w.els.instanceMatrix.needsUpdate = true;
+
+    // ions: thermal vibration amplitude follows T, plus decaying kicks from collisions
+    const amp = 0.012 + 0.11 * heatLevel;
+    const omega = 22;
+    const kickDecay = Math.exp(-5 * dt);
+    const g = glowAt(w.T, glowColor);
+    ionColor.copy(COOL_ION).lerp(WARM_ION, Math.min(1, dT / 500));
+    if (g > 0) ionColor.lerp(glowColor, Math.min(1, g * 0.8));
+    for (let i = 0; i < N_ION; i++) {
+      const a = amp + w.ionKick[i];
+      w.ionKick[i] *= kickDecay;
+      const b = i * 3;
+      _p.set(
+        w.ionBase[b] + a * Math.sin(omega * time + w.ionPhase[b]),
+        w.ionBase[b + 1] + a * Math.sin(omega * 1.31 * time + w.ionPhase[b + 1]),
+        w.ionBase[b + 2] + a * Math.sin(omega * 0.87 * time + w.ionPhase[b + 2])
+      );
+      _m.makeTranslation(_p.x, _p.y, _p.z);
+      w.ions.setMatrixAt(i, _m);
+      w.ions.setColorAt(i, ionColor);
+    }
+    w.ions.instanceMatrix.needsUpdate = true;
+    if (w.ions.instanceColor) w.ions.instanceColor.needsUpdate = true;
+
+    // sparks
+    for (let i = 0; i < N_SPARK; i++) {
+      if (w.sparkLife[i] <= 0) continue;
+      w.sparkLife[i] -= dt / 0.28;
+      const l = Math.max(0, w.sparkLife[i]);
+      const sc = (0.35 + (1 - l) * 0.9) * (0.6 + 0.4 * w.sparkHot[i]);
+      _m.compose(_p.set(w.sparkPos[i * 3], w.sparkPos[i * 3 + 1], w.sparkPos[i * 3 + 2]), _q, _s.set(sc, sc, sc));
+      if (l === 0) _m.makeScale(0, 0, 0);
+      w.sparks.setMatrixAt(i, _m);
+      const e = l * l * 0.55 * w.sparkHot[i];
+      sparkColor.setRGB(e, e * 0.88, e * 0.55);
+      w.sparks.setColorAt(i, sparkColor);
+    }
+    w.sparks.instanceMatrix.needsUpdate = true;
+    if (w.sparks.instanceColor) w.sparks.instanceColor.needsUpdate = true;
+
+    // heat particles: emission rate ∝ heat leaving the wire (= P at equilibrium)
+    w.heatAcc += cooling(w.T) * 1.1 * dt;
+    while (w.heatAcc >= 1) {
+      w.heatAcc -= 1;
+      const s = w.heatNext; w.heatNext = (s + 1) % N_HEAT;
+      const ang = Math.random() * 6.283;
+      w.hPos[s * 3] = (Math.random() - 0.5) * L;
+      w.hPos[s * 3 + 1] = Math.sin(ang) * RAD;
+      w.hPos[s * 3 + 2] = Math.cos(ang) * RAD;
+      w.hVel[s * 3] = (Math.random() - 0.5) * 0.2;
+      w.hVel[s * 3 + 1] = 0.9 + Math.random() * 0.8;
+      w.hVel[s * 3 + 2] = Math.cos(ang) * 0.35;
+      w.hLife[s] = 1;
+    }
+    const hl = Math.min(1, dT / 700);
+    heatColor.setRGB(0.55 + 0.45 * hl, 0.22 + 0.25 * hl, 0.06 + 0.04 * hl);
+    for (let i = 0; i < N_HEAT; i++) {
+      if (w.hLife[i] <= 0) { w.hCol[i * 3] = w.hCol[i * 3 + 1] = w.hCol[i * 3 + 2] = 0; continue; }
+      w.hLife[i] -= dt / 2.2;
+      w.hPos[i * 3] += w.hVel[i * 3] * dt;
+      w.hPos[i * 3 + 1] += w.hVel[i * 3 + 1] * dt;
+      w.hPos[i * 3 + 2] += w.hVel[i * 3 + 2] * dt;
+      const l = Math.max(0, w.hLife[i]);
+      const f = Math.sin(l * Math.PI) * 0.32;
+      w.hCol[i * 3] = heatColor.r * f;
+      w.hCol[i * 3 + 1] = heatColor.g * f;
+      w.hCol[i * 3 + 2] = heatColor.b * f;
+    }
+    w.heat.geometry.attributes.position.needsUpdate = true;
+    w.heat.geometry.attributes.color.needsUpdate = true;
+
+    // glow of the wire body
+    w.ionMat.emissive.copy(glowColor).multiplyScalar(g * 0.9);
+    w.shellMat.emissive.copy(glowColor).multiplyScalar(g * 0.6);
+    w.shellMat.opacity = 0.13 + 0.25 * Math.min(1, g);
+    w.glowMat.color.copy(glowColor);
+    w.glowMat.opacity = Math.min(0.5, g * 0.32);
+    w.light.color.copy(g > 0 ? glowColor : _c.setRGB(1, 0.4, 0.15));
+    w.light.intensity = g * 2.4;
+  }
+
+  // ---------- labels ----------
+  const tagA = document.getElementById('tagA'), tagB = document.getElementById('tagB');
+  const tagAt = document.getElementById('tagAt'), tagBt = document.getElementById('tagBt');
+  const _v = new THREE.Vector3();
+  function placeTag(el, w) {
+    _v.set(-L / 2 + 1.2, RAD + 0.55, w.z).project(camera);
+    const r = stage.getBoundingClientRect();
+    const visible = _v.z < 1;
+    el.style.display = visible ? 'flex' : 'none';
+    el.style.transform = 'translate(' + ((_v.x + 1) / 2 * r.width) + 'px,' + ((1 - _v.y) / 2 * r.height) + 'px) translate(-50%, -100%)';
+  }
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id);
+  const iRange = $('iRange'), rRange = $('rRange');
+  const modeI = $('modeI'), modeR = $('modeR');
+  const playBtn = $('playBtn'), resetBtn = $('resetBtn');
+
+  function applyParams() {
+    state.I = parseFloat(iRange.value);
+    state.R = parseFloat(rRange.value);
+    $('iOut').textContent = fmt(state.I, 1) + ' А';
+    $('rOut').textContent = fmt(state.R, 1) + ' Ом';
+    wireA.I = state.I; wireA.R = state.R;
+    const b = paramsB();
+    wireB.I = b.I; wireB.R = b.R;
+    wireA.P = wireA.I * wireA.I * wireA.R;
+    wireB.P = wireB.I * wireB.I * wireB.R;
+    $('ratioWhy').textContent = state.mode === 'I'
+      ? 'ток вдвое больше → тепла в 2² = 4 раза больше'
+      : 'сопротивление вдвое больше → тепла в 2 раза больше';
+  }
+  function reset() {
+    state.t = 0;
+    state.wires.forEach((w) => { w.T = T0; w.Q = 0; w.heatAcc = 0; });
+    qSamples.length = 0;
+    qSamples.push([0, 0, 0]);
+    lastSample = 0;
+  }
+  function setMode(m) {
+    state.mode = m;
+    modeI.setAttribute('aria-pressed', String(m === 'I'));
+    modeR.setAttribute('aria-pressed', String(m === 'R'));
+    applyParams();
+    reset();
+  }
+  iRange.addEventListener('input', applyParams);
+  rRange.addEventListener('input', applyParams);
+  modeI.addEventListener('click', () => setMode('I'));
+  modeR.addEventListener('click', () => setMode('R'));
+  playBtn.addEventListener('click', () => {
+    state.running = !state.running;
+    playBtn.textContent = state.running ? 'Пауза' : 'Пуск';
+  });
+  resetBtn.addEventListener('click', reset);
+  playBtn.textContent = state.running ? 'Пауза' : 'Пуск';
+
+  function updateReadouts() {
+    const rows = [['a', wireA], ['b', wireB]];
+    rows.forEach(([p, w]) => {
+      $(p + 'I').textContent = fmt(w.I, 1);
+      $(p + 'R').textContent = fmt(w.R, 1);
+      $(p + 'P').textContent = fmt(w.P, 1);
+      $(p + 'T').textContent = fmt(w.T, 0);
+      $(p + 'Q').textContent = fmtQ(w.Q);
+    });
+    $('tOut').textContent = fmt(state.t, 1);
+    const ratio = wireA.Q > 1e-9 ? wireB.Q / wireA.Q : (wireA.P > 0 ? wireB.P / wireA.P : NaN);
+    $('ratioOut').textContent = isFinite(ratio) ? fmt(ratio, 2) : '—';
+    tagAt.textContent = fmt(wireA.T, 0) + ' °C · ' + fmt(wireA.P, 1) + ' Вт';
+    tagBt.textContent = fmt(wireB.T, 0) + ' °C · ' + fmt(wireB.P, 1) + ' Вт';
+  }
+
+  // ---------- 2D charts ----------
+  const css = getComputedStyle(document.documentElement);
+  const tok = (n) => css.getPropertyValue(n).trim();
+  const COL = { a: tok('--a'), b: tok('--b'), line: tok('--line'), muted: tok('--muted'), fg: tok('--fg') };
+  const MONO = '11px ' + tok('--font-mono');
+
+  function prepCanvas(c) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+      c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    }
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    return { g, w, h };
+  }
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const n = v / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p;
+  }
+  function axes(g, x0, y0, x1, y1, xMax, yMax, xUnit, yUnit) {
+    g.font = MONO;
+    g.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = y1 + (y0 - y1) * (1 - i / 4);
+      g.strokeStyle = COL.line;
+      g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+      g.fillStyle = COL.muted; g.textAlign = 'right'; g.textBaseline = 'middle';
+      g.fillText(fmt(yMax * i / 4, yMax * i / 4 < 10 && i ? 1 : 0), x0 - 6, y);
+    }
+    g.textAlign = 'center'; g.textBaseline = 'top';
+    for (let i = 0; i <= 4; i++) {
+      const x = x0 + (x1 - x0) * i / 4;
+      g.fillStyle = COL.muted;
+      g.fillText(fmt(xMax * i / 4, xMax * i / 4 % 1 ? 1 : 0), x, y0 + 6);
+    }
+    g.textAlign = 'right'; g.textBaseline = 'top';
+    g.fillText(xUnit, x1, y0 + 20);
+    g.textAlign = 'left'; g.textBaseline = 'bottom';
+    g.fillText(yUnit, 2, y1 - 6);
+  }
+
+  const qSamples = [[0, 0, 0]];
+  let lastSample = 0;
+
+  function drawP() {
+    const { g, w, h } = prepCanvas($('pChart'));
+    const x0 = 44, x1 = w - 10, y1 = 18, y0 = h - 36;
+    const IMAX = 6;
+    const b = paramsB();
+    const rMaxCurve = Math.max(state.R, b.R);
+    const yMax = niceMax(Math.max(IMAX * IMAX * rMaxCurve * 0.55, b.I * b.I * b.R * 1.15, 1));
+    axes(g, x0, y0, x1, y1, IMAX, yMax, 'I, А', 'P, Вт');
+    const X = (i) => x0 + (x1 - x0) * i / IMAX;
+    const Y = (p) => y0 - (y0 - y1) * Math.min(p, yMax * 1.05) / yMax;
+    function curve(R, color, dash) {
+      g.save();
+      g.beginPath();
+      g.rect(x0, y1 - 4, x1 - x0, y0 - y1 + 4); g.clip();
+      g.strokeStyle = color; g.lineWidth = 2; g.setLineDash(dash || []);
+      g.beginPath();
+      for (let k = 0; k <= 80; k++) {
+        const i = IMAX * k / 80;
+        const x = X(i), y = Y(i * i * R);
+        k ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+      g.restore();
+    }
+    curve(state.R, COL.a);
+    if (state.mode === 'R') curve(b.R, COL.b, [5, 4]);
+    function marker(I, R, color, label) {
+      const x = X(I), y = Y(I * I * R);
+      g.strokeStyle = color; g.globalAlpha = 0.55; g.lineWidth = 1; g.setLineDash([3, 3]);
+      g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y); g.lineTo(x0, y); g.stroke();
+      g.setLineDash([]); g.globalAlpha = 1;
+      g.fillStyle = color;
+      g.beginPath(); g.arc(x, y, 5, 0, 7); g.fill();
+      g.font = '600 12px ' + tok('--font-body');
+      g.textAlign = 'left'; g.textBaseline = 'bottom';
+      g.fillText(label, Math.min(x + 7, x1 - 12), y - 3);
+    }
+    marker(state.I, state.R, COL.a, 'A');
+    marker(b.I, b.R, COL.b, 'B');
+  }
+
+  function drawQ() {
+    const { g, w, h } = prepCanvas($('qChart'));
+    const x0 = 52, x1 = w - 10, y1 = 18, y0 = h - 36;
+    const last = qSamples[qSamples.length - 1];
+    const tMax = niceMax(Math.max(10, state.t * 1.05));
+    const yMax = niceMax(Math.max(10, last[2] * 1.1, last[1] * 1.1));
+    axes(g, x0, y0, x1, y1, tMax, yMax, 't, с', 'Q, Дж');
+    const X = (t) => x0 + (x1 - x0) * t / tMax;
+    const Y = (q) => y0 - (y0 - y1) * q / yMax;
+    [[1, COL.a], [2, COL.b]].forEach(([k, color]) => {
+      g.strokeStyle = color; g.lineWidth = 2;
+      g.beginPath();
+      const step = Math.max(1, Math.floor(qSamples.length / 600));
+      for (let i = 0; i < qSamples.length; i += step) {
+        const s = qSamples[i];
+        i ? g.lineTo(X(s[0]), Y(s[k])) : g.moveTo(X(s[0]), Y(s[k]));
+      }
+      g.lineTo(X(state.t), Y(k === 1 ? wireA.Q : wireB.Q));
+      g.stroke();
+      g.fillStyle = color;
+      g.beginPath(); g.arc(X(state.t), Y(k === 1 ? wireA.Q : wireB.Q), 4, 0, 7); g.fill();
+    });
+  }
+
+  // ---------- resize & loop ----------
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camera.aspect = r.width / Math.max(1, r.height);
+    camera.fov = camera.aspect < 0.9 ? 60 : 42;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', () => { resize(); drawP(); drawQ(); });
+
+  applyParams();
+  resize();
+
+  let prev = performance.now();
+  let animTime = 0;
+  let uiAcc = 1;
+  function frame(now) {
+    let dt = Math.max(0, Math.min(0.05, (now - prev) / 1000));
+    prev = now;
+    if (state.running) {
+      state.t += dt;
+      state.wires.forEach((w) => stepPhysics(w, dt));
+      if (state.t - lastSample >= 0.2) {
+        qSamples.push([state.t, wireA.Q, wireB.Q]);
+        lastSample = state.t;
+      }
+      const vdt = reduceMotion ? dt * 0.35 : dt;
+      animTime += vdt;
+      state.wires.forEach((w) => stepParticles(w, vdt, animTime));
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    placeTag(tagA, wireA);
+    placeTag(tagB, wireB);
+    uiAcc += dt;
+    if (uiAcc > 0.1) {
+      uiAcc = 0;
+      updateReadouts();
+      drawP();
+      drawQ();
+    }
+    requestAnimationFrame(frame);
+  }
+  // render a populated first frame even if paused
+  state.wires.forEach((w) => stepParticles(w, 0.016, 0));
+  updateReadouts();
+  drawP(); drawQ();
+  requestAnimationFrame(frame);
+})();
+</script>

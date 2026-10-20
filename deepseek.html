@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23070b12'/%3E%3Cpath d='M38 8 18 36h12l-4 20 20-28H34z' fill='%23ffb457'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./harness-nav.css" />
 <title>Закон Джоуля-Ленца — 3D</title>
 <style>
   body{margin:0;overflow:hidden;font-family:'Courier New',monospace;background:#000;color:#fff}
-  #ui{position:absolute;top:10px;left:10px;background:rgba(10,10,30,.92);padding:15px;
+  #ui{position:absolute;top:54px;left:10px;background:rgba(10,10,30,.92);padding:15px;
       border-radius:8px;z-index:100;border:1px solid #334;width:270px;font-size:12px}
   #info{position:absolute;bottom:10px;left:10px;background:rgba(10,10,30,.92);padding:12px;
         border-radius:8px;z-index:100;border:1px solid #334;line-height:1.7}
@@ -24,28 +25,26 @@
   .bar{width:160px;height:10px;border-radius:3px;margin:4px 0;
        background:linear-gradient(to right,#3366ff,#00cccc,#ffff00,#ff8800,#ff0000)}
   .lb{display:flex;justify-content:space-between;color:#889}
-  .vers{display:flex;gap:4px;margin-bottom:10px}
-  .vers a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-          gap:1px;text-align:center;padding:5px 6px;font-size:10px;letter-spacing:.08em;
-          color:#889;text-decoration:none;border:1px solid #334;border-radius:4px;
-          background:#0a0a18}
-  .vers a span{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#889}
-  .vers a em{font-style:normal;font-size:8.5px;letter-spacing:.02em;text-transform:uppercase;
-             color:#556;white-space:nowrap}
-  .vers a.on{border-color:#665522;background:#1a1a2e}
-  .vers a.on span{color:#ffcc44}
-  .vers a.on em{color:#a98a4d}
-  .vers a:hover{background:#224}
-  .vers a:hover span{color:#fff}
 </style>
 </head>
 <body>
 
-<div id="ui">
-  <div class="vers">
-    <a href="./index.html"><span>DeepSeek</span><em>в нашем харнессе</em></a>
-    <a href="./deepseek.html" class="on"><span>DeepSeek</span><em>в обычном харнессе</em></a>
+<nav class="harness-nav" aria-label="Выбор харнесса">
+  <span class="harness-nav__label">харнесс</span>
+  <div class="harness-nav__list">
+    <a class="harness-nav__item" href="./index.html">
+      <span>DeepSeek</span><em>в нашем харнессе</em>
+    </a>
+    <a class="harness-nav__item is-on" href="./deepseek.html" aria-current="page">
+      <span>DeepSeek</span><em>в обычном харнессе</em>
+    </a>
+    <a class="harness-nav__item" href="./claude-code.html">
+      <span>Claude</span><em>в Claude Code</em>
+    </a>
   </div>
+</nav>
+
+<div id="ui">
   <h3>⚡ Закон Джоуля-Ленца</h3>
 
   <label>Ток I: <span class="val" id="cV">2.0</span> А</label>
